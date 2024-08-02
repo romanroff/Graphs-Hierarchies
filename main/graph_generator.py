@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+import networkit as nk
 import networkx as nx
 import random
 
@@ -6,7 +8,16 @@ class GraphGenerator:
         self.graph = None
 
     def generate_graph(self, graph_type, **kwargs):
-        """Генерирует граф заданного типа с использованием параметров из kwargs."""
+        """
+
+        Генерирует граф заданного типа с использованием параметров из kwargs.
+
+        Пример:
+        >>> graph_generator.generate_graph("complete", n=10)
+        >>> graph_generator.generate_graph("erdos_renyi", n=20, p=0.3)
+        >>> graph_generator.generate_graph("watts_strogatz", n=30, k=4, p=0.1, weight=True)
+
+        """
         if graph_type == "complete":
             self.graph = nx.complete_graph(kwargs.get("n", 10))
         elif graph_type == "path":
@@ -48,19 +59,69 @@ class GraphGenerator:
     def get_graph(self):
         """Возвращает сгенерированный граф."""
         return self.graph
+    
+class HierarchicalGraph:
+    def __init__(self, graph):
+        self.graph = graph
+        self.graph_dict = self.create_graph_dict()
 
-if __name__ == "__main__":
-    # Пример использования
-    graph_generator = GraphGenerator()
+    def create_graph_dict(self):
+        """Создает словарь графа."""
+        return {node: list(self.graph.neighbors(node)) for node in self.graph.nodes()}
 
-    # Генерация полного графа с 10 узлами
-    graph_generator.generate_graph("complete", n=10)
-    complete_graph = graph_generator.get_graph()
+    def find_path(self, node1, node2):
+        """Ищет кратчайший путь между двумя узлами."""
+        nk_graph = nk.nxadapter.nx2nk(self.graph, weightAttr='weight')
+        dijkstra = nk.distance.Dijkstra(nk_graph, node1, True, False, node2)
+        dijkstra.run()
+        
+        path = dijkstra.getPath(node2)
+        if path:
+            return path
+        else:
+            return None
 
-    # Генерация графа Эрдёша-Реньи с 20 узлами и вероятностью p=0.3
-    graph_generator.generate_graph("erdos_renyi", n=20, p=0.3)
-    erdos_renyi_graph = graph_generator.get_graph()
+    def draw_graph(self, edge_labels=False, figsize=(10, 10)):
+        """Рисует начальный граф с метками узлов и ребер."""
+        plt.figure(figsize=figsize)
+        # if nx.check_planarity(self.graph)[0]:
+        #     pos = nx.planar_layout(self.graph, )
+        # else:
+        pos = nx.spring_layout(self.graph, seed=42)
+        nx.draw(self.graph, pos, with_labels=True, node_color='lightblue', edge_color='gray')
+        
+        # Метки узлов
+        node_labels = {node: str(node) for node in self.graph.nodes()}
+        nx.draw_networkx_labels(self.graph, pos, labels=node_labels)
+        
+        # Метки ребер
+        if edge_labels:
+            edge_labels = {(u, v): f'{d["weight"]}' for u, v, d in self.graph.edges(data=True)}
+            nx.draw_networkx_edge_labels(self.graph, pos, edge_labels=edge_labels)
+        
+        plt.show()
 
-    # Генерация графа Ваттса-Строгаца с 30 узлами, степенью каждого узла 4 и вероятностью перемешивания 0.1
-    graph_generator.generate_graph("watts_strogatz", n=30, k=4, p=0.1)
-    watts_strogatz_graph = graph_generator.get_graph()
+    def draw_route(self, node1, node2, edge_labels=False, figsize=(10, 10)):
+        """Рисует маршрут между двумя точками."""
+        path = self.find_path(node1, node2)
+        
+        if path:
+            plt.figure(figsize=figsize)
+            # if nx.check_planarity(self.graph)[0]:
+            #     pos = nx.planar_layout(self.graph)
+            # else:
+            pos = nx.spring_layout(self.graph, seed=42)
+            nx.draw(self.graph, pos, with_labels=True, node_color='lightblue', edge_color='gray')
+            
+            # Рисование пути
+            path_edges = [(path[i], path[i+1]) for i in range(len(path)-1)]
+            nx.draw_networkx_edges(self.graph, pos, edgelist=path_edges, edge_color='red', width=2)
+            nx.draw_networkx_nodes(self.graph, pos, nodelist=path, node_color='red')
+
+            if edge_labels:
+                edge_labels = {(u, v): f'{d["weight"]}' for u, v, d in self.graph.edges(data=True)}
+                nx.draw_networkx_edge_labels(self.graph, pos, edge_labels=edge_labels)
+            
+            plt.show()
+        else:
+            print(f"No path found between node {node1} and node {node2}")
